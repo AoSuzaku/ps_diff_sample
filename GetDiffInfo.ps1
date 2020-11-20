@@ -1,4 +1,4 @@
-######################################################################
+﻿######################################################################
 #
 #　Diff取得
 #
@@ -7,22 +7,22 @@
 #
 #
 #　変更履歴
-#　　・2020/11/XX　新規作成
+#　　・2020/11/21　新規作成
 #
 ######################################################################
 
 # 関数宣言
 
 # メイン関数
-Function Main(){
+Function Main([string]$cDir){
 
     # 変数宣言
     [string]$dir1
     [string]$dir2
 
     # 配列宣言
-    [string[][][][]]$tmp1 = @()
-    [string[][][][]]$tmp2 = @()
+    [object]$tmp1 = @{}
+    [object]$tmp2 = @{}
 
     # レジストリ変更
     ChangeRegistry "1"
@@ -30,20 +30,18 @@ Function Main(){
     # ディレクトリ入力
     $dir1 = Read-Host "比較元のディレクトリを入力してください。"
 
-    # ディレクトリが存在しない場合
+    # 入力ディレクトリチェック
     if(!(DirCheck $dir1)){
 
-        Write-Host "入力されたディレクトリが存在しません。"
         return
     
     }
 
     $dir2 = Read-Host "比較先のディレクトリを入力してください。"
 
-    # ディレクトリが存在しない場合
+    # 入力ディレクトリチェック
     if(!(DirCheck $dir2)){
 
-        Write-Host "入力されたディレクトリが存在しません。"
         return
     
     }
@@ -53,12 +51,9 @@ Function Main(){
 
     $tmp2 = GetDirInfo $dir2
 
-    #for($i = 0; $i -lt $tmp1.Length; $i++){
-    
-    #    Write-Host $tmp1[$i]
-
-    #}
-    
+    # Diff抽出
+    OutDiff $cDir $tmp1 $tmp2
+   
     # レジストリ変更
     ChangeRegistry "0"
 
@@ -74,9 +69,18 @@ Function ChangeRegistry([string]$set){
 # ディレクトリチェック
 Function DirCheck([string]$dir){
 
+    # 入力チェック
+    if($dir -eq ""){
+
+        Write-Host "ディレクトリが入力されていません。"
+        return $false
+    
+    }
+
     # ディレクトリ存在チェック
     if(!(Test-Path $dir)){
 
+        Write-Host "入力されたディレクトリが存在しません。"
         return $false
     
     }
@@ -89,7 +93,7 @@ Function DirCheck([string]$dir){
 Function GetDirInfo([string]$dir){
 
     # 配列宣言
-    [string[][][][]]$tmp = @()
+    [object]$tmp = @{}
 
     # ファイル検索
     Get-ChildItem -Path $dir -Filter * -Recurse | Where-Object { !$_.PSIsContainer } | %{
@@ -98,7 +102,7 @@ Function GetDirInfo([string]$dir){
         [string]$fullDir = $_.FullName
 
         # 置換処理
-        [string]$changeDir = ReplaceStr $fullDir
+        [string]$changeDir = ReplaceStr $dir $fullDir
 				
 		# ファイルサイズ
 		[string]$size = [decimal]("{0:N2}" -f ($_.Length / 1KB))
@@ -107,7 +111,7 @@ Function GetDirInfo([string]$dir){
         [string]$lastUpd =  $_.LastWriteTime.ToString("yyyy/MM/dd hh:mm:ss")
 
         # 配列への格納
-        $tmp += ,@($changeDir, $fullDir, $size, $lastUpd)
+        $tmp.add($changeDir, "$($lastUpd),$($size)")
 
 	}
 
@@ -116,17 +120,46 @@ Function GetDirInfo([string]$dir){
 }
 
 # 置換処理
-Function ReplaceStr([string]$str){
+Function ReplaceStr([string]$dir, [string]$str){
 
     # 変数宣言
     [string]$rStr
 
-    $rStr = $str.Replace("\\jeis.co.jp\jeisfs\root\150_7_カードシステム部\", "").Replace("00_共通\", "").Replace("01605340_カードFEP系PJ\","")
-    $rStr = $rStr.Replace("G:\共有ドライブ\", "").Replace("【01605340】カードFEP系プロジェクト\", "").Replace("カード00_共通1\", "").Replace("カード00_共通2\", "").Replace("カード00_共通3\", "").Replace("カード00_共通4\", "").Replace("カード00_共通5\", "").Replace("カード00_共通6\", "")
+    $rStr = $str.Replace($dir, "")
             
     return $rStr
 
 }
 
+# Diff抽出処理
+Function OutDiff([string]$cDir, [object]$tmp1, [object]$tmp2){
+
+    # 配列宣言
+    [object]$result = @()
+
+    $tmp1.keys + $tmp2.keys | Sort-Object | Get-Unique | Where-Object { $tmp1[$_] -ne $tmp2[$_] } |
+        %{
+            if(!$tmp1.containskey($_)){
+
+                $result += ("only," + $dir2 + $_.Trim())
+            
+            }elseif(!$tmp2.containskey($_)){
+
+                $result += ("only," + $dir1 + $_.Trim())
+
+            }else{
+            
+                $result += ("differ," + $dir1 + $_.Trim() + "," + $tmp1[$_] + "," +$dir2 + $_.Trim() + "," + $tmp2[$_] )
+
+            }
+        }
+    
+    $result | Out-File -Append ($cDir + "`\" + "DiffInfo.txt") -Encoding default
+
+}
+
+# ps1ファイルの格納先を取得
+[string]$cDir = Split-Path $myInvocation.MyCommand.Path -Parent
+
 # Main関数実行
-Main
+Main $cDir
