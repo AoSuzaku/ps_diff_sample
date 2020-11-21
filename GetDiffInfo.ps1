@@ -141,11 +141,11 @@ Function OutDiff([string]$cDir, [object]$tmp1, [object]$tmp2){
         %{
             if(!$tmp1.containskey($_)){
 
-                $result += ("only," + $dir2 + $_.Trim())
+                $result += ("1 only," + $dir2 + $_.Trim())
             
             }elseif(!$tmp2.containskey($_)){
 
-                $result += ("only," + $dir1 + $_.Trim())
+                $result += ("2 only," + $dir1 + $_.Trim())
 
             }else{
             
@@ -154,7 +154,7 @@ Function OutDiff([string]$cDir, [object]$tmp1, [object]$tmp2){
             }
         }
     
-    $result | Out-File -Append ($cDir + "`\" + "DiffInfo.txt") -Encoding default
+    $result | Out-File -Append ($cDir + "`\" + "DiffInfo.csv") -Encoding default
 
 }
 
